@@ -31,6 +31,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
         autoLoadEntities: true,
+        ssl: {
+          rejectUnauthorized: false,
+        },
         entities: [User, Role, Permission, Service, UserServiceRole],
         synchronize: true,
       }),
