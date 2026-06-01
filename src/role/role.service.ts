@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -19,35 +24,44 @@ export class RoleService {
     private readonly permissionRepo: Repository<Permission>,
   ) {}
 
-  // CREATE
   async create(dto: CreateRoleDto) {
-    const permissions = await this.permissionRepo.find({
-      where: {
-        id: In(dto.permissionIds),
-      },
-    });
+    try {
+      const existing = await this.roleRepo.findOne({
+        where: { name: dto.name },
+      });
 
-    const role = this.roleRepo.create({
-      name: dto.name,
-      description: dto.description,
-      permissions,
-      isActive: dto.isActive ?? true,
-    });
+      if (existing) {
+        throw new ConflictException('Ce rôle existe déjà');
+      }
 
-    await this.roleRepo.save(role);
+      const permissions = await this.permissionRepo.find({
+        where: { id: In(dto.permissionIds) },
+      });
 
-    return {
-      message: 'Rôle créé avec succès',
-      role,
-    };
+      const role = this.roleRepo.create({
+        name: dto.name,
+        description: dto.description,
+        permissions,
+        isActive: dto.isActive ?? true,
+      });
+
+      await this.roleRepo.save(role);
+
+      return {
+        message: 'Rôle créé avec succès',
+        role,
+      };
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      console.error(error);
+      throw new InternalServerErrorException("Erreur lors de la création du rôle");
+    }
   }
 
-  // FIND ALL
   async findAll() {
     return this.roleRepo.find();
   }
 
-  // FIND ONE
   async findOne(id: string) {
     const role = await this.roleRepo.findOne({
       where: { id },
@@ -60,43 +74,61 @@ export class RoleService {
     return role;
   }
 
-  // UPDATE
   async update(id: string, dto: UpdateRoleDto) {
-    const role = await this.findOne(id);
+    try {
+      const role = await this.findOne(id);
 
-    let permissions = role.permissions;
+      if (dto.name) {
+        const existing = await this.roleRepo.findOne({
+          where: { name: dto.name },
+        });
 
-    if (dto.permissionIds) {
-      permissions = await this.permissionRepo.find({
-        where: {
-          id: In(dto.permissionIds),
-        },
+        if (existing && existing.id !== id) {
+          throw new ConflictException('Ce rôle existe déjà');
+        }
+      }
+
+      let permissions = role.permissions;
+
+      if (dto.permissionIds) {
+        permissions = await this.permissionRepo.find({
+          where: { id: In(dto.permissionIds) },
+        });
+      }
+
+      Object.assign(role, {
+        name: dto.name ?? role.name,
+        description: dto.description ?? role.description,
+        permissions,
+        isActive: dto.isActive ?? role.isActive,
       });
+
+      await this.roleRepo.save(role);
+
+      return {
+        message: 'Rôle mis à jour',
+        role,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof ConflictException) throw error;
+      console.error(error);
+      throw new InternalServerErrorException("Erreur lors de la mise à jour du rôle");
     }
-
-    Object.assign(role, {
-      name: dto.name ?? role.name,
-      description: dto.description ?? role.description,
-      permissions,
-      isActive: dto.isActive ?? role.isActive,
-    });
-
-    await this.roleRepo.save(role);
-
-    return {
-      message: 'Rôle mis à jour',
-      role,
-    };
   }
 
-  // DELETE
   async remove(id: string) {
-    const role = await this.findOne(id);
+    try {
+      const role = await this.findOne(id);
 
-    await this.roleRepo.remove(role);
+      await this.roleRepo.remove(role);
 
-    return {
-      message: 'Rôle supprimé',
-    };
+      return {
+        message: 'Rôle supprimé',
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      console.error(error);
+      throw new InternalServerErrorException("Erreur lors de la suppression du rôle");
+    }
   }
 }

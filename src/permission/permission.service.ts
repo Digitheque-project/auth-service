@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -15,28 +20,39 @@ export class PermissionService {
     private readonly permissionRepo: Repository<Permission>,
   ) {}
 
-  // CREATE
   async create(dto: CreatePermissionDto) {
-    const permission = this.permissionRepo.create({
-      name: dto.name,
-      description: dto.description,
-      isActive: dto.isActive ?? true,
-    });
+    try {
+      const existing = await this.permissionRepo.findOne({
+        where: { name: dto.name },
+      });
 
-    await this.permissionRepo.save(permission);
+      if (existing) {
+        throw new ConflictException('Cette permission existe déjà');
+      }
 
-    return {
-      message: 'Permission créée avec succès',
-      permission,
-    };
+      const permission = this.permissionRepo.create({
+        name: dto.name,
+        description: dto.description,
+        isActive: dto.isActive ?? true,
+      });
+
+      await this.permissionRepo.save(permission);
+
+      return {
+        message: 'Permission créée avec succès',
+        permission,
+      };
+    } catch (error) {
+      if (error instanceof ConflictException) throw error;
+      console.error(error);
+      throw new InternalServerErrorException("Erreur lors de la création de la permission");
+    }
   }
 
-  // FIND ALL
   async findAll() {
     return this.permissionRepo.find();
   }
 
-  // FIND ONE
   async findOne(id: string) {
     const permission = await this.permissionRepo.findOne({
       where: { id },
@@ -49,28 +65,48 @@ export class PermissionService {
     return permission;
   }
 
-  // UPDATE
   async update(id: string, dto: UpdatePermissionDto) {
-    const permission = await this.findOne(id);
+    try {
+      const permission = await this.findOne(id);
 
-    Object.assign(permission, dto);
+      if (dto.name) {
+        const existing = await this.permissionRepo.findOne({
+          where: { name: dto.name },
+        });
 
-    await this.permissionRepo.save(permission);
+        if (existing && existing.id !== id) {
+          throw new ConflictException('Cette permission existe déjà');
+        }
+      }
 
-    return {
-      message: 'Permission mise à jour',
-      permission,
-    };
+      Object.assign(permission, dto);
+
+      await this.permissionRepo.save(permission);
+
+      return {
+        message: 'Permission mise à jour',
+        permission,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof ConflictException) throw error;
+      console.error(error);
+      throw new InternalServerErrorException("Erreur lors de la mise à jour de la permission");
+    }
   }
 
-  // DELETE
   async remove(id: string) {
-    const permission = await this.findOne(id);
+    try {
+      const permission = await this.findOne(id);
 
-    await this.permissionRepo.remove(permission);
+      await this.permissionRepo.remove(permission);
 
-    return {
-      message: 'Permission supprimée',
-    };
+      return {
+        message: 'Permission supprimée',
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      console.error(error);
+      throw new InternalServerErrorException("Erreur lors de la suppression de la permission");
+    }
   }
 }
