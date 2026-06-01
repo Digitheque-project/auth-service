@@ -14,8 +14,26 @@ export class UserClientService {
     } catch (error) {
       const axiosError = error as AxiosError;
 
-      if (axiosError.code === 'ECONNREFUSED' || axiosError.code === 'ECONNRESET') {
-        throw new InternalServerErrorException('Service utilisateur indisponible');
+      console.log('================');
+      console.log('CODE:', axiosError.code);
+      console.log('MESSAGE:', axiosError.message);
+      console.log('STATUS:', axiosError.response?.status);
+      console.log('DATA:', axiosError.response?.data);
+      console.log('URL:', axiosError.config?.url);
+      console.log('BASE URL:', axiosError.config?.baseURL);
+      console.log(
+        'FULL URL:',
+        `${axiosError.config?.baseURL}${axiosError.config?.url}`,
+      );
+      console.log('================');
+
+      if (
+        axiosError.code === 'ECONNREFUSED' ||
+        axiosError.code === 'ECONNRESET'
+      ) {
+        throw new InternalServerErrorException(
+          'Service utilisateur indisponible',
+        );
       }
 
       if (axiosError.response) {
@@ -27,7 +45,9 @@ export class UserClientService {
         };
       }
 
-      throw new InternalServerErrorException('Erreur de communication avec le service utilisateur');
+      throw new InternalServerErrorException(
+        'Erreur de communication avec le service utilisateur',
+      );
     }
   }
 
