@@ -15,10 +15,12 @@ export class Role {
 
   @Column({ unique: true })
   name: string;
-  // DOCTOR, VIEWER
 
   @Column({ nullable: true })
   description: string;
+
+  @Column({ nullable: true })
+  serviceId: string;
 
   @ManyToMany(() => Permission, {
     eager: true,

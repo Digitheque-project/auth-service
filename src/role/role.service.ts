@@ -41,6 +41,7 @@ export class RoleService {
       const role = this.roleRepo.create({
         name: dto.name,
         description: dto.description,
+        serviceId: dto.serviceId,
         permissions,
         isActive: dto.isActive ?? true,
       });
@@ -99,6 +100,7 @@ export class RoleService {
       Object.assign(role, {
         name: dto.name ?? role.name,
         description: dto.description ?? role.description,
+        serviceId: dto.serviceId ?? role.serviceId,
         permissions,
         isActive: dto.isActive ?? role.isActive,
       });

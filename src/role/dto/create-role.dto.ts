@@ -24,6 +24,13 @@ export class CreateRoleDto {
   description?: string;
 
   @ApiProperty({
+    example: 'uuid-service',
+  })
+  @IsString()
+  @IsNotEmpty()
+  serviceId: string;
+
+  @ApiProperty({
     example: ['uuid-permission-1', 'uuid-permission-2'],
   })
   @IsArray()

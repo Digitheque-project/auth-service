@@ -96,7 +96,16 @@ export class AuthService {
 
       const accessToken = this.jwtService.sign(payload);
 
-      return { accessToken };
+      return {
+        accessToken,
+        user: {
+          id: userData.id,
+          name: userData.name,
+          firstname: userData.firstname,
+          email: userData.email,
+        },
+        services,
+      };
     } catch (error) {
       if (
         error instanceof UnauthorizedException
