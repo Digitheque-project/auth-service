@@ -7,16 +7,63 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { UserClientService } from '../user-client/user-client.service';
+import { RoleService } from '../role/role.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
+  // Cache in-memory pour les services (id → { name, baseUrl })
+  private static serviceCache: Map<string, { name: string; baseUrl: string }> | null = null;
+  private static cachePromise: Promise<void> | null = null;
+
   constructor(
     private readonly userClient: UserClientService,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly roleService: RoleService,
   ) {}
+
+  private async fetchServicesWithCache(): Promise<any[]> {
+    const cache = AuthService.serviceCache;
+    if (cache) {
+      return Array.from(cache.entries()).map(([id, svc]) => ({ id, ...svc }));
+    }
+
+    // Évite les appels concurrents pendant le premier chargement
+    if (AuthService.cachePromise) {
+      await AuthService.cachePromise;
+      const refreshed = AuthService.serviceCache;
+      if (refreshed) {
+        return Array.from(refreshed.entries()).map(([id, svc]) => ({ id, ...svc }));
+      }
+    }
+
+    AuthService.cachePromise = (async () => {
+      try {
+        const url = this.configService.get<string>('SERVICE_SERVICE_URL');
+        const apiKey = this.configService.get<string>('INTERNAL_API_KEY');
+        const res = await fetch(`${url}/services`, {
+          signal: AbortSignal.timeout(5000),
+          headers: { 'x-api-key': apiKey ?? '' },
+        });
+        const data = await res.json();
+        const list: any[] = Array.isArray(data) ? data : (data.services ?? []);
+        AuthService.serviceCache = new Map(list.map(s => [s.id, { name: s.name, baseUrl: s.baseUrl }]));
+        console.log('Service cache refreshed:', AuthService.serviceCache.size, 'services');
+      } catch {
+        console.warn('Failed to fetch services, cache remains empty');
+      } finally {
+        AuthService.cachePromise = null;
+      }
+    })();
+
+    await AuthService.cachePromise;
+    const result = AuthService.serviceCache ?? new Map();
+    return Array.from(result.entries()).map(([id, svc]) => ({ id, ...svc }));
+  }
 
   async register(dto: RegisterDto) {
     try {
@@ -63,7 +110,7 @@ export class AuthService {
       }
 
       throw new InternalServerErrorException(
-        data?.message || 'Erreur lors de la création de l’utilisateur',
+        data?.message || 'Erreur lors de la création de l\'utilisateur',
       );
     }
   }
@@ -82,30 +129,45 @@ export class AuthService {
         throw new UnauthorizedException('Identifiants incorrects');
       }
 
-      const services = (userData.serviceRoles ?? []).map((sr: any) => ({
+      const rawServices = (userData.serviceRoles ?? []).map((sr: any) => ({
         serviceId: sr.serviceId,
         roleId: sr.roleId,
       }));
+
+      // Enrich with service names (cached) and role names (local DB)
+      const [allRoles, servicesFromCache] = await Promise.all([
+        this.roleService.findAll(),
+        this.fetchServicesWithCache(),
+      ]);
+
+      const roleMap = new Map<string, string>();
+      for (const r of allRoles) roleMap.set(r.id, r.name);
+
+      const serviceMap = new Map<string, any>();
+      for (const s of servicesFromCache) serviceMap.set(s.id, s);
+
+      const services = rawServices.map(s => {
+        const cached = serviceMap.get(s.serviceId);
+        return {
+          serviceId: s.serviceId,
+          serviceName: cached?.name ?? null,
+          baseUrl: cached?.baseUrl ?? null,
+          roleId: s.roleId,
+          roleName: roleMap.get(s.roleId) ?? null,
+        };
+      });
 
       const payload = {
         userId: userData.id,
         name: userData.name,
         firstname: userData.firstname,
+        email: userData.email,
         services,
       };
 
       const accessToken = this.jwtService.sign(payload);
 
-      return {
-        accessToken,
-        user: {
-          id: userData.id,
-          name: userData.name,
-          firstname: userData.firstname,
-          email: userData.email,
-        },
-        services,
-      };
+      return { accessToken };
     } catch (error) {
       if (
         error instanceof UnauthorizedException
