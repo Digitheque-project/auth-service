@@ -25,10 +25,15 @@ export class AuthService {
   private async fetchServices(): Promise<any[]> {
     const url = this.configService.get<string>('SERVICE_SERVICE_URL');
     const apiKey = this.configService.get<string>('INTERNAL_API_KEY');
+    console.log(`Fetching services from ${url}/services`);
     const res = await fetch(`${url}/services`, {
       signal: AbortSignal.timeout(5000),
       headers: { 'x-api-key': apiKey ?? '' },
     });
+    if (!res.ok) {
+      console.error(`Service-service returned ${res.status}`);
+      throw new Error(`Service-service unavailable (${res.status})`);
+    }
     const data = await res.json();
     return Array.isArray(data) ? data : (data.services ?? []);
   }
@@ -137,13 +142,11 @@ export class AuthService {
 
       return { accessToken };
     } catch (error) {
-      if (
-        error instanceof UnauthorizedException
-      ) {
+      if (error instanceof UnauthorizedException) {
         throw error;
       }
 
-      console.error(error);
+      console.log('[login error]', (error as Error).message);
 
       if (error.code === 'ECONNREFUSED' || error.code === 'ECONNRESET') {
         throw new InternalServerErrorException(
@@ -152,7 +155,7 @@ export class AuthService {
       }
 
       throw new InternalServerErrorException(
-        'Erreur lors de la connexion',
+        (error as Error).message || 'Erreur lors de la connexion',
       );
     }
   }
