@@ -15,12 +15,6 @@ import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
-  // Cache in-memory pour les services (id → { name, baseUrl }) — TTL 5 min
-  private static serviceCache: Map<string, { name: string; baseUrl: string }> | null = null;
-  private static cacheTimestamp = 0;
-  private static readonly CACHE_TTL = 5 * 60 * 1000;
-  private static cachePromise: Promise<void> | null = null;
-
   constructor(
     private readonly userClient: UserClientService,
     private readonly jwtService: JwtService,
@@ -28,44 +22,15 @@ export class AuthService {
     private readonly roleService: RoleService,
   ) {}
 
-  private async fetchServicesWithCache(): Promise<any[]> {
-    const now = Date.now();
-    if (AuthService.serviceCache && (now - AuthService.cacheTimestamp) < AuthService.CACHE_TTL) {
-      return Array.from(AuthService.serviceCache.entries()).map(([id, svc]) => ({ id, ...svc }));
-    }
-
-    // Évite les appels concurrents pendant le premier chargement
-    if (AuthService.cachePromise) {
-      await AuthService.cachePromise;
-      const cache = AuthService.serviceCache;
-      if (cache) {
-        return Array.from(cache.entries()).map(([id, svc]) => ({ id, ...svc }));
-      }
-    }
-
-    AuthService.cachePromise = (async () => {
-      try {
-        const url = this.configService.get<string>('SERVICE_SERVICE_URL');
-        const apiKey = this.configService.get<string>('INTERNAL_API_KEY');
-        const res = await fetch(`${url}/services`, {
-          signal: AbortSignal.timeout(5000),
-          headers: { 'x-api-key': apiKey ?? '' },
-        });
-        const data = await res.json();
-        const list: any[] = Array.isArray(data) ? data : (data.services ?? []);
-        AuthService.serviceCache = new Map(list.map(s => [s.id, { name: s.name, baseUrl: s.baseUrl }]));
-        AuthService.cacheTimestamp = Date.now();
-        console.log('Service cache refreshed:', AuthService.serviceCache.size, 'services');
-      } catch {
-        console.warn('Failed to fetch services, cache remains empty');
-      } finally {
-        AuthService.cachePromise = null;
-      }
-    })();
-
-    await AuthService.cachePromise;
-    const result = AuthService.serviceCache ?? new Map();
-    return Array.from(result.entries()).map(([id, svc]) => ({ id, ...svc }));
+  private async fetchServices(): Promise<any[]> {
+    const url = this.configService.get<string>('SERVICE_SERVICE_URL');
+    const apiKey = this.configService.get<string>('INTERNAL_API_KEY');
+    const res = await fetch(`${url}/services`, {
+      signal: AbortSignal.timeout(5000),
+      headers: { 'x-api-key': apiKey ?? '' },
+    });
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.services ?? []);
   }
 
   async register(dto: RegisterDto) {
@@ -137,24 +102,24 @@ export class AuthService {
         roleId: sr.roleId,
       }));
 
-      // Enrich with service names (cached) and role names (local DB)
-      const [allRoles, servicesFromCache] = await Promise.all([
+      // Enrich with service names and role names
+      const [allRoles, allServices] = await Promise.all([
         this.roleService.findAll(),
-        this.fetchServicesWithCache(),
+        this.fetchServices(),
       ]);
 
       const roleMap = new Map<string, string>();
       for (const r of allRoles) roleMap.set(r.id, r.name);
 
       const serviceMap = new Map<string, any>();
-      for (const s of servicesFromCache) serviceMap.set(s.id, s);
+      for (const s of allServices) serviceMap.set(s.id, s);
 
       const services = rawServices.map(s => {
-        const cached = serviceMap.get(s.serviceId);
+        const svc = serviceMap.get(s.serviceId);
         return {
           serviceId: s.serviceId,
-          serviceName: cached?.name ?? null,
-          baseUrl: cached?.baseUrl ?? null,
+          serviceName: svc?.name ?? null,
+          baseUrl: svc?.baseUrl ?? null,
           roleId: s.roleId,
           roleName: roleMap.get(s.roleId) ?? null,
         };
