@@ -15,8 +15,10 @@ import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
-  // Cache in-memory pour les services (id → { name, baseUrl })
+  // Cache in-memory pour les services (id → { name, baseUrl }) — TTL 5 min
   private static serviceCache: Map<string, { name: string; baseUrl: string }> | null = null;
+  private static cacheTimestamp = 0;
+  private static readonly CACHE_TTL = 5 * 60 * 1000;
   private static cachePromise: Promise<void> | null = null;
 
   constructor(
@@ -27,17 +29,17 @@ export class AuthService {
   ) {}
 
   private async fetchServicesWithCache(): Promise<any[]> {
-    const cache = AuthService.serviceCache;
-    if (cache) {
-      return Array.from(cache.entries()).map(([id, svc]) => ({ id, ...svc }));
+    const now = Date.now();
+    if (AuthService.serviceCache && (now - AuthService.cacheTimestamp) < AuthService.CACHE_TTL) {
+      return Array.from(AuthService.serviceCache.entries()).map(([id, svc]) => ({ id, ...svc }));
     }
 
     // Évite les appels concurrents pendant le premier chargement
     if (AuthService.cachePromise) {
       await AuthService.cachePromise;
-      const refreshed = AuthService.serviceCache;
-      if (refreshed) {
-        return Array.from(refreshed.entries()).map(([id, svc]) => ({ id, ...svc }));
+      const cache = AuthService.serviceCache;
+      if (cache) {
+        return Array.from(cache.entries()).map(([id, svc]) => ({ id, ...svc }));
       }
     }
 
@@ -52,6 +54,7 @@ export class AuthService {
         const data = await res.json();
         const list: any[] = Array.isArray(data) ? data : (data.services ?? []);
         AuthService.serviceCache = new Map(list.map(s => [s.id, { name: s.name, baseUrl: s.baseUrl }]));
+        AuthService.cacheTimestamp = Date.now();
         console.log('Service cache refreshed:', AuthService.serviceCache.size, 'services');
       } catch {
         console.warn('Failed to fetch services, cache remains empty');
