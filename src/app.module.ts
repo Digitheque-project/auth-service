@@ -24,12 +24,17 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
+
         autoLoadEntities: true,
-        ssl: {
-          rejectUnauthorized: false,
-        },
         entities: [Role, Permission],
-        synchronize: true,
+
+        // === FIX SSL (important) ===
+        ssl: configService.get('DB_SSL') === 'true'
+          ? { rejectUnauthorized: false }
+          : false,
+
+        synchronize: process.env.NODE_ENV !== 'production', // false en production
+        migrationsRun: true,
       }),
     }),
     RoleModule,
@@ -43,4 +48,4 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }
