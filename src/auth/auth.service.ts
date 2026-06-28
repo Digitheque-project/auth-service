@@ -38,6 +38,22 @@ export class AuthService {
     return Array.isArray(data) ? data : (data.services ?? []);
   }
 
+  private async fetchChus(): Promise<any[]> {
+    const url = this.configService.get<string>('CHU_SERVICE_URL');
+    const apiKey = this.configService.get<string>('INTERNAL_API_KEY');
+    console.log(`Fetching CHUs from ${url}/chu`);
+    const res = await fetch(`${url}/chu`, {
+      signal: AbortSignal.timeout(5000),
+      headers: { 'x-api-key': apiKey ?? '' },
+    });
+    if (!res.ok) {
+      console.error(`Chu-service returned ${res.status}`);
+      throw new Error(`Chu-service unavailable (${res.status})`);
+    }
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+
   async register(dto: RegisterDto) {
     try {
       const hashedPassword = await bcrypt.hash(dto.password, 10);
@@ -107,26 +123,37 @@ export class AuthService {
         roleId: sr.roleId,
       }));
 
-      // Enrich with service names and role names
-      const [allRoles, allServices] = await Promise.all([
+      const [allRoles, allServices, allChus] = await Promise.all([
         this.roleService.findAll(),
         this.fetchServices(),
+        this.fetchChus(),
       ]);
 
-      const roleMap = new Map<string, string>();
-      for (const r of allRoles) roleMap.set(r.id, r.name);
+      const rolePermissionsMap = new Map<string, string[]>();
+      for (const r of allRoles) {
+        rolePermissionsMap.set(r.id, (r.permissions ?? []).map((p: any) => p.name));
+      }
+
+      const roleNameMap = new Map<string, string>();
+      for (const r of allRoles) roleNameMap.set(r.id, r.name);
 
       const serviceMap = new Map<string, any>();
       for (const s of allServices) serviceMap.set(s.id, s);
 
+      const chuMap = new Map<string, any>();
+      for (const c of allChus) chuMap.set(c.id, c);
+
       const services = rawServices.map(s => {
         const svc = serviceMap.get(s.serviceId);
+        const chu = svc?.chuId ? chuMap.get(svc.chuId) ?? null : null;
         return {
           serviceId: s.serviceId,
           serviceName: svc?.name ?? null,
           baseUrl: svc?.baseUrl ?? null,
           roleId: s.roleId,
-          roleName: roleMap.get(s.roleId) ?? null,
+          roleName: roleNameMap.get(s.roleId) ?? null,
+          permissions: rolePermissionsMap.get(s.roleId) ?? [],
+          chu,
         };
       });
 
