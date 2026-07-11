@@ -27,11 +27,11 @@ export class RoleService {
   async create(dto: CreateRoleDto) {
     try {
       const existing = await this.roleRepo.findOne({
-        where: { name: dto.name },
+        where: { name: dto.name, serviceId: dto.serviceId ?? null },
       });
 
       if (existing) {
-        throw new ConflictException('Ce rôle existe déjà');
+        throw new ConflictException('Ce rôle existe déjà dans ce service');
       }
 
       const permissions = await this.permissionRepo.find({
@@ -81,11 +81,11 @@ export class RoleService {
 
       if (dto.name) {
         const existing = await this.roleRepo.findOne({
-          where: { name: dto.name },
+          where: { name: dto.name, serviceId: dto.serviceId ?? role.serviceId },
         });
 
         if (existing && existing.id !== id) {
-          throw new ConflictException('Ce rôle existe déjà');
+          throw new ConflictException('Ce rôle existe déjà dans ce service');
         }
       }
 

@@ -4,23 +4,25 @@ import {
   Column,
   ManyToMany,
   JoinTable,
+  Unique,
 } from 'typeorm';
 
 import { Permission } from '../../permission/entities/permission.entity';
 
 @Entity('roles')
+@Unique(['name', 'serviceId'])
 export class Role {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
-  @Column({ unique: true })
-  name: string;
-
-  @Column({ nullable: true })
-  description: string;
+  @Column()
+  name!: string;
 
   @Column({ nullable: true })
-  serviceId: string;
+  description!: string;
+
+  @Column({ nullable: true })
+  serviceId!: string;
 
   @ManyToMany(() => Permission, {
     eager: true,
@@ -28,8 +30,8 @@ export class Role {
   @JoinTable({
     name: 'role_permissions',
   })
-  permissions: Permission[];
+  permissions!: Permission[];
 
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 }
