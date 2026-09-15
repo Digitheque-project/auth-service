@@ -23,7 +23,10 @@ export class AuthService {
   ) {}
 
   private async fetchServices(): Promise<any[]> {
-    const url = this.configService.get<string>('SERVICE_SERVICE_URL');
+    // Passe par la gateway (registre central des URLs de services) au lieu
+    // d'appeler service-service en direct : en cas de coupure/migration du
+    // service, seule la variable d'env de la gateway change, pas celle-ci.
+    const url = this.configService.get<string>('GATEWAY_URL');
     const apiKey = this.configService.get<string>('INTERNAL_API_KEY');
     console.log(`Fetching services from ${url}/services`);
     const res = await fetch(`${url}/services`, {
@@ -39,7 +42,8 @@ export class AuthService {
   }
 
   private async fetchChus(): Promise<any[]> {
-    const url = this.configService.get<string>('CHU_SERVICE_URL');
+    // Idem fetchServices() ci-dessus : via la gateway plutôt qu'en direct.
+    const url = this.configService.get<string>('GATEWAY_URL');
     const apiKey = this.configService.get<string>('INTERNAL_API_KEY');
     console.log(`Fetching CHUs from ${url}/chu`);
     const res = await fetch(`${url}/chu`, {
