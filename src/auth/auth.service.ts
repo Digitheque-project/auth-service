@@ -22,6 +22,23 @@ export class AuthService {
     private readonly roleService: RoleService,
   ) {}
 
+  // Les bases Postgres gratuites (Render) coupent parfois une connexion
+  // inactive sans prévenir le pool TypeORM : la 1ère requête sur cette
+  // connexion échoue avec "Connection terminated unexpectedly", la suivante
+  // réussit sur une connexion fraîche. On retente une fois avant d'abandonner,
+  // uniquement sur ce message précis, pour ne jamais masquer une vraie panne.
+  private async withStaleConnectionRetry<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      const message = (error as Error)?.message ?? '';
+      if (message.includes('Connection terminated unexpectedly')) {
+        return fn();
+      }
+      throw error;
+    }
+  }
+
   private async fetchServices(): Promise<any[]> {
     // Passe par la gateway (registre central des URLs de services) au lieu
     // d'appeler service-service en direct : en cas de coupure/migration du
@@ -128,7 +145,7 @@ export class AuthService {
       }));
 
       const [allRoles, allServices, allChus] = await Promise.all([
-        this.roleService.findAll(),
+        this.withStaleConnectionRetry(() => this.roleService.findAll()),
         this.fetchServices(),
         this.fetchChus(),
       ]);
