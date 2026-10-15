@@ -1,11 +1,20 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
+import { ConfigService } from '@nestjs/config';
 import { firstValueFrom, timeout, catchError, throwError } from 'rxjs';
 import { AxiosError } from 'axios';
+import { buildInternalAuthHeader } from './internal-auth.util';
 
 @Injectable()
 export class UserClientService {
-  constructor(private readonly httpService: HttpService) {}
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  private authHeaders(): Record<string, string> {
+    return buildInternalAuthHeader(this.configService.get<string>('JWT_SECRET'));
+  }
 
   private async request<T>(call: () => Promise<{ data: T }>): Promise<T> {
     try {
@@ -54,10 +63,12 @@ export class UserClientService {
   async create(data: Record<string, any>) {
     return this.request(() =>
       firstValueFrom(
-        this.httpService.post('/users', data).pipe(
-          timeout(10000),
-          catchError((err) => throwError(() => err)),
-        ),
+        this.httpService
+          .post('/users', data, { headers: this.authHeaders() })
+          .pipe(
+            timeout(10000),
+            catchError((err) => throwError(() => err)),
+          ),
       ),
     );
   }
@@ -66,7 +77,9 @@ export class UserClientService {
     return this.request(() =>
       firstValueFrom(
         this.httpService
-          .get(`/users/by-email/${encodeURIComponent(email)}`)
+          .get(`/users/by-email/${encodeURIComponent(email)}`, {
+            headers: this.authHeaders(),
+          })
           .pipe(
             timeout(10000),
             catchError((err) => throwError(() => err)),
@@ -78,7 +91,7 @@ export class UserClientService {
   async findOne(id: string) {
     return this.request(() =>
       firstValueFrom(
-        this.httpService.get(`/users/${id}`).pipe(
+        this.httpService.get(`/users/${id}`, { headers: this.authHeaders() }).pipe(
           timeout(10000),
           catchError((err) => throwError(() => err)),
         ),

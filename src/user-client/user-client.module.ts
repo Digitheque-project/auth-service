@@ -13,10 +13,7 @@ import { UserClientService } from './user-client.service';
         // d'appeler user-services en direct : en cas de coupure/migration du
         // service, seule la variable d'env de la gateway change, pas celle-ci.
         baseURL: configService.get<string>('GATEWAY_URL') ?? 'http://localhost:8080',
-        timeout: 5000,
-        headers: {
-          'x-api-key': configService.get<string>('INTERNAL_API_KEY') ?? '',
-        },
+        timeout: 15000,
       }),
     }),
   ],
