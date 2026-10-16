@@ -47,7 +47,7 @@ export class AuthService {
     const apiKey = this.configService.get<string>('INTERNAL_API_KEY');
     console.log(`Fetching services from ${url}/services`);
     const res = await fetch(`${url}/services`, {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000),
       headers: { 'x-api-key': apiKey ?? '' },
     });
     if (!res.ok) {
@@ -64,7 +64,7 @@ export class AuthService {
     const apiKey = this.configService.get<string>('INTERNAL_API_KEY');
     console.log(`Fetching CHUs from ${url}/chu`);
     const res = await fetch(`${url}/chu`, {
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(15000),
       headers: { 'x-api-key': apiKey ?? '' },
     });
     if (!res.ok) {
