@@ -6,7 +6,9 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../common/guards/admin.guard';
 
 import {
   ApiBearerAuth,
@@ -29,6 +31,7 @@ export class RoleController {
 
   // CREATE
   @Post()
+  @UseGuards(AdminGuard)
   @ApiOperation({
     summary: 'Créer un rôle',
   })
@@ -63,6 +66,7 @@ export class RoleController {
 
   // UPDATE
   @Patch(':id')
+  @UseGuards(AdminGuard)
   @ApiOperation({
     summary: 'Modifier un rôle',
   })
@@ -75,6 +79,7 @@ export class RoleController {
 
   // DELETE
   @Delete(':id')
+  @UseGuards(AdminGuard)
   @ApiOperation({
     summary: 'Supprimer un rôle',
   })

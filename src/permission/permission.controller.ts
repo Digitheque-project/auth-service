@@ -6,7 +6,9 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
+import { AdminGuard } from '../common/guards/admin.guard';
 
 import {
   ApiBearerAuth,
@@ -29,6 +31,7 @@ export class PermissionController {
 
   // CREATE
   @Post()
+  @UseGuards(AdminGuard)
   @ApiOperation({
     summary: 'Créer une permission',
   })
@@ -63,6 +66,7 @@ export class PermissionController {
 
   // UPDATE
   @Patch(':id')
+  @UseGuards(AdminGuard)
   @ApiOperation({
     summary: 'Modifier une permission',
   })
@@ -75,6 +79,7 @@ export class PermissionController {
 
   // DELETE
   @Delete(':id')
+  @UseGuards(AdminGuard)
   @ApiOperation({
     summary: 'Supprimer une permission',
   })
